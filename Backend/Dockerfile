@@ -3,7 +3,8 @@ FROM python:3.11-slim
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    HF_HOME=/app/.cache/huggingface
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -19,6 +20,14 @@ RUN apt-get update \
 
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Pre-download BLIP base model weights during build
+RUN python - <<'PY'
+from transformers import BlipProcessor, BlipForConditionalGeneration
+BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+print("BLIP base cached")
+PY
 
 COPY . /app
 
