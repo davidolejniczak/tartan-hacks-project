@@ -5,6 +5,7 @@ import sys
 sys.path.append("..")
 from database import Database
 from .agent import Agent
+from embedding import SVGEmbedder
 
 
 #  To run the app, use the command:
@@ -14,30 +15,49 @@ app = FastAPI()
 router = APIRouter()
 db = Database()
 agent = Agent()
+embedder = SVGEmbedder()
 
-class SVGRequest(BaseModel):
+class AddFragmentRequest(BaseModel):
     mosaic_id: int
     svg: str
-    embedding: List[float]
-    caption: str
 
 @router.get("/")
 async def read_root():
     return {"message": "Hello World"}
 
-@router.post("/add_svg")
-async def add_svg(request: SVGRequest):
+@router.post("/add_fragment")
+async def add_fragment(request: AddFragmentRequest) -> dict:
     """Add a new SVG fragment to the database."""
     try:
+        svg_string = request.svg
+
+        embedding, caption = embedder.embed_svg(svg_string)  # Get embedding from the SVG content
+
         result = db.add_fragment(
             mosaic_id=request.mosaic_id,
-            svg=request.svg,
-            embedding=request.embedding, 
-            caption=request.caption
+            svg=svg_string,
+            embedding=embedding, 
+            caption=caption
         )
         return {"status": "success", "data": result}
+    
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
+
+# @router.post("/add_fragment")
+# async def add_fragment(request: SVGRequest):
+#     """Add a new SVG fragment to the database."""
+#     try:
+#         result = db.add_fragment(
+#             mosaic_id=request.mosaic_id,
+#             svg=request.svg,
+#             embedding=request.embedding, 
+#             caption=request.caption
+#         )
+#         return {"status": "success", "data": result}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/compare")
 async def compare_mosaics(items: List[int]) -> dict:
