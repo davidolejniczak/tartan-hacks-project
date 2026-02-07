@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import sys
 sys.path.append("..")
 from database import Database
+from .agent import Agent
 
 
 #  To run the app, use the command:
@@ -12,11 +13,13 @@ from database import Database
 app = FastAPI()
 router = APIRouter()
 db = Database()
+agent = Agent()
 
 class SVGRequest(BaseModel):
     mosaic_id: int
     svg: str
     embedding: List[float]
+    caption: str
 
 @router.get("/")
 async def read_root():
@@ -29,17 +32,41 @@ async def add_svg(request: SVGRequest):
         result = db.add_fragment(
             mosaic_id=request.mosaic_id,
             svg=request.svg,
-            embedding=request.embedding
+            embedding=request.embedding, 
+            caption=request.caption
         )
         return {"status": "success", "data": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/compare")
-async def compare_mosaics(items: List[int]) -> str:
-    if len(items) == 2:
-        return f"{items[0]} vs {items[1]}"
+async def compare_mosaics(items: List[int]) -> dict:
+    mosaic1 = items[0]
+    mosaic2 = items[1]
+
+    db_response = db.query_similar_fragments_between_mosaics(mosaic1, mosaic2, top_k=3)
+
+
+    if len(db_response) > 0:
+        person_1_interests = ", ".join([db.get_caption(item["fragment_a_id"]) for item in db_response])
+        person_2_interests = ", ".join([db.get_caption(item["fragment_b_id"]) for item in db_response])
+
+        agent_response = await agent.agent_conversation(person_1_interests, person_2_interests)
+        
+        return {"similar_fragments": db_response, "agent_response": agent_response}
     else:
-        return f"Comparing {len(items)} items"
+        raise HTTPException(status_code=404, detail="No similar fragments found between the specified mosaics.")
+    
+@router.post("/notify")
+def send_notification(user_ids: List[int], message: str) -> dict:
+    """Send a push notification to specified users."""
+    try:
+        # Database logic for notifications, not agent
+        result = db.send_notification(user_ids[0], message)
+        return {"status": "success", "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
 
 app.include_router(router)
