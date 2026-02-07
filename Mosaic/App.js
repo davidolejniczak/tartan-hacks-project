@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -6,9 +6,16 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import WelcomeScreen from './app/screens/WelcomeScreen';
 import HomeScreen from './app/screens/HomeScreen';
 
+// BLE
+import { initBLE } from './app/comms/DualModeMesh';
+
 const Stack = createNativeStackNavigator();
 
 export default function App() {
+  useEffect(() => {
+    initBLE();
+  }, []);
+
   return (
     <NavigationContainer>
       <Stack.Navigator 
