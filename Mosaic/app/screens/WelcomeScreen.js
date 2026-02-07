@@ -121,7 +121,7 @@ export default function WelcomeScreen({ navigation }) {
         <View style={styles.contentContainer}>
           {/* Top Section: Branding */}
           <View style={styles.topSection}>
-            <Text style={styles.logoText}>Mosaic</Text>
+            <Text style={styles.logoText}>Fragment</Text>
             <View style={styles.logoUnderline} />
           </View>
 
