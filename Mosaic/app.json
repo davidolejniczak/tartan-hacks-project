@@ -13,17 +13,54 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Mosaic uses Bluetooth to discover nearby devices.",
+        "NSBluetoothPeripheralUsageDescription": "Mosaic uses Bluetooth to communicate with nearby devices.",
+        "NSLocationWhenInUseUsageDescription": "Mosaic uses location access to enable Bluetooth scanning."
+      },
+      "bundleIdentifier": "com.anonymous.Mosaic"
     },
     "android": {
+      "permissions": [
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_ADVERTISE",
+        "ACCESS_FINE_LOCATION"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./app/assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.anonymous.Mosaic"
     },
     "web": {
       "favicon": "./app/assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableJetifier": true
+          }
+        }
+      ],
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": ["peripheral", "central"]
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "a899936a-2520-49bf-bc8a-3873b449dad4"
+      }
     }
   }
 }

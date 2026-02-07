@@ -1,18 +1,16 @@
-import { NativeModules, NativeEventEmitter } from 'react-native';
-import BleManager from 'react-native-ble-manager';
-import BlePeripheral from 'react-native-ble-peripheral';
+import { PermissionsAndroid, Platform } from 'react-native';
+import { BleManager } from 'react-native-ble-plx';
 import { startMatchLoop } from './BackendManager';
 
-const BleManagerModule = NativeModules.BleManager;
-const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
+const manager = new BleManager();
 
 // CONFIGURATION
 const SERVICE_UUID = '12345678-1234-5678-1234-56789abc0001';
 
-// ADD AUTH TO MOSAICID 
+// ADD AUTH TO MOSAICID
 let myID = `User-${Math.floor(Math.random() * 10000)}`;
 let initialized = false;
-let activeListener = null;
+let scanSubscription = null;
 
 /**
  * Returns the local device's user ID.
@@ -20,24 +18,42 @@ let activeListener = null;
 export const getMyID = () => myID;
 
 /**
- * Initialize BLE and start advertising.
+ * Initialize BLE: request permissions and start advertising + match loop.
  * Safe to call multiple times — only runs once.
  */
 export const initBLE = async () => {
   if (initialized) return;
   initialized = true;
 
-  await BleManager.start({ showAlert: false });
-
-  BlePeripheral.setName(myID);
-  BlePeripheral.addService(SERVICE_UUID, true);
-
-  try {
-    await BlePeripheral.start();
-    console.log(`[Advertiser] Started. Broadcasting: ${myID}`);
-  } catch (error) {
-    console.log('[Advertiser] Error:', error);
+  if (Platform.OS === 'android') {
+    try {
+      if (Platform.Version >= 31) {
+        await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
+        ]);
+      } else {
+        await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        );
+      }
+    } catch (error) {
+      console.warn('[BLE] Permission request error:', error);
+    }
   }
+
+  // Wait for BLE to be powered on
+  await new Promise((resolve) => {
+    const sub = manager.onStateChange((state) => {
+      if (state === 'PoweredOn') {
+        sub.remove();
+        resolve();
+      }
+    }, true);
+  });
+
+  console.log(`[BLE] Powered on. My ID: ${myID}`);
 
   // Automatically start the scan → match loop on app load
   startMatchLoop()
@@ -51,51 +67,45 @@ export const initBLE = async () => {
 
 /**
  * Start a BLE scan. Returns a Promise that resolves with the first
- * found user's ID string. Scanning stops as soon as one is found.
+ * found user's ID string (from the device's local name).
  *
  * This is a low-level primitive — use BackendManager.startMatchLoop()
  * for the full scan-check-resume flow.
- *
- * Usage:
- *   const foundUserID = await startScan();
  */
 export const startScan = () => {
   return new Promise((resolve, reject) => {
-    // Clean up any previous listener
-    if (activeListener) {
-      activeListener.remove();
-      activeListener = null;
+    // Clean up any previous scan
+    if (scanSubscription) {
+      manager.stopDeviceScan();
+      scanSubscription = null;
     }
 
-    activeListener = bleManagerEmitter.addListener(
-      'BleManagerDiscoverPeripheral',
-      (peripheral) => {
-        const foundName = peripheral.name;
+    try {
+      manager.startDeviceScan(
+        [SERVICE_UUID],
+        { allowDuplicates: false },
+        (error, device) => {
+          if (error) {
+            console.error('[Scanner] Error:', error);
+            reject(error);
+            return;
+          }
 
-        if (foundName && foundName.startsWith('User-') && foundName !== myID) {
-          BleManager.stopScan()
-            .then(() => {
-              console.log('[Scanner] Stopped — user found:', foundName);
-              if (activeListener) {
-                activeListener.remove();
-                activeListener = null;
-              }
-              resolve(foundName);
-            })
-            .catch(reject);
-        }
-      }
-    );
+          const foundName = device.localName || device.name;
 
-    BleManager.scan([SERVICE_UUID], 0, true)
-      .then(() => console.log('[Scanner] Scanning started...'))
-      .catch((err) => {
-        if (activeListener) {
-          activeListener.remove();
-          activeListener = null;
-        }
-        reject(err);
-      });
+          if (foundName && foundName.startsWith('User-') && foundName !== myID) {
+            manager.stopDeviceScan();
+            scanSubscription = null;
+            console.log('[Scanner] Stopped — user found:', foundName);
+            resolve(foundName);
+          }
+        },
+      );
+      scanSubscription = true;
+      console.log('[Scanner] Scanning started...');
+    } catch (err) {
+      reject(err);
+    }
   });
 };
 
@@ -103,19 +113,16 @@ export const startScan = () => {
  * Stop BLE scanning.
  */
 export const stopScan = async () => {
-  if (activeListener) {
-    activeListener.remove();
-    activeListener = null;
-  }
-  await BleManager.stopScan();
+  manager.stopDeviceScan();
+  scanSubscription = null;
   console.log('[Scanner] Stopped');
 };
 
 /**
- * Stop all BLE activity (scanning + advertising).
+ * Stop all BLE activity.
  */
 export const stopBLE = async () => {
   await stopScan();
-  await BlePeripheral.stop();
+  manager.destroy();
   console.log('[BLE] Stopped all activity');
 };
