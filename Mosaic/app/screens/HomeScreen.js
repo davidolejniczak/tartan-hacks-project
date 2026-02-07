@@ -12,13 +12,16 @@ import {
   Animated,
   Easing,
 } from 'react-native';
+import { uploadSvgFragment } from '../comms/BackendManager';
 
 const { width, height } = Dimensions.get('window');
 
 export default function HomeScreen({ navigation }) {
+  const MOSAIC_ID = 1;
   const [activeTab, setActiveTab] = useState('mosaic'); // mosaic, friends, profile
   const [showAddFragment, setShowAddFragment] = useState(false);
   const [newFragmentText, setNewFragmentText] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
 
   // --- DATA STATES ---
   const [fragments, setFragments] = useState([
@@ -230,6 +233,71 @@ export default function HomeScreen({ navigation }) {
     }, 50);
   };
 
+  const handleUploadSvg = async () => {
+    try {
+      setIsUploading(true);
+      let DocumentPicker;
+      let FileSystem;
+
+      try {
+        DocumentPicker = await import('expo-document-picker');
+        FileSystem = await import('expo-file-system');
+      } catch (err) {
+        Alert.alert(
+          'Upload unavailable',
+          'File picker requires a development build. Please use a dev build to upload SVGs.'
+        );
+        return;
+      }
+
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'image/svg+xml',
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const fileUri = result.assets?.[0]?.uri;
+      if (!fileUri) {
+        Alert.alert('Upload failed', 'Could not read the selected file.');
+        return;
+      }
+
+      const svg = await FileSystem.readAsStringAsync(fileUri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const response = await uploadSvgFragment(MOSAIC_ID, svg);
+      if (response?.status !== 'success') {
+        throw new Error(response?.detail || 'Upload failed');
+      }
+
+      const newFrag = {
+        id: Date.now(),
+        type: 'text',
+        content: response?.data?.context || 'SVG Upload',
+        sub: 'SVG Upload',
+        color: '#F8F9FA',
+      };
+
+      setFragments((prev) => {
+        const updated = [newFrag, ...prev];
+        setTimeout(() => {
+          recalculatePositions(updated, true);
+        }, 50);
+        return updated;
+      });
+
+      setShowAddFragment(false);
+    } catch (error) {
+      Alert.alert('Upload failed', error?.message || 'Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // --- RENDER TABS ---
 
   const renderMosaicTab = () => {
@@ -259,6 +327,15 @@ export default function HomeScreen({ navigation }) {
             />
             <TouchableOpacity activeOpacity={0.9} onPress={addFragment} style={styles.submitButton}>
               <Text style={styles.submitButtonText}>Add to Collection</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={handleUploadSvg}
+              style={[styles.uploadButton, isUploading && styles.uploadButtonDisabled]}
+              disabled={isUploading}
+            >
+              <Text style={styles.uploadButtonText}>{isUploading ? 'Uploading…' : 'Upload SVG from Phone'}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -439,6 +516,9 @@ const styles = StyleSheet.create({
   input: { fontSize: 16, color: '#1A1A1A', marginBottom: 16 },
   submitButton: { backgroundColor: '#1A1A1A', paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
   submitButtonText: { color: '#FFF', fontWeight: '600' },
+  uploadButton: { marginTop: 12, borderWidth: 1, borderColor: '#1A1A1A', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  uploadButtonDisabled: { opacity: 0.6 },
+  uploadButtonText: { color: '#1A1A1A', fontWeight: '600' },
   fragmentContainer: {
     width: width - 48,
     height: Math.max(height - 300, 600),
