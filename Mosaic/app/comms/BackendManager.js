@@ -2,6 +2,21 @@ import { getMyID, startScan, stopScan } from './DualModeMesh';
 
 const BACKEND_URL = 'http://localhost:8000';
 
+export const uploadSvgFragment = async (mosaicId, svg) => {
+  const response = await fetch(`${BACKEND_URL}/add_fragment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mosaic_id: mosaicId, svg }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'Upload failed');
+  }
+
+  return response.json();
+};
+
 let scanning = true; // on by default when the app opens
 let onMatchCallback = null;
 
