@@ -36,10 +36,12 @@ async def add_svg(request: SVGRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/compare")
-async def compare_mosaics(items: List[int]) -> str:
-    if len(items) == 2:
-        return f"{items[0]} vs {items[1]}"
-    else:
-        return f"Comparing {len(items)} items"
+async def compare_mosaics(items: List[int]) -> dict:
+    embedding1 = items[0]
+    embedding2 = items[1]
+
+    db_response = db.query_similar_fragments_between_mosaics(embedding1, embedding2, top_k=5)
+
+    return {"similar_fragments": db_response}
 
 app.include_router(router)
