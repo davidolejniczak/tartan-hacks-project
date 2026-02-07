@@ -8,14 +8,14 @@ const manager = new BleManager();
 const SERVICE_UUID = '12345678-1234-5678-1234-56789abc0001';
 
 // ADD AUTH TO MOSAICID
-let myID = `User-${Math.floor(Math.random() * 10000)}`;
+let mosaicID = `1`;
 let initialized = false;
 let scanSubscription = null;
 
 /**
- * Returns the local device's user ID.
+ * Returns the local device's mosaic ID.
  */
-export const getMyID = () => myID;
+export const getMosaicID = () => mosaicID;
 
 /**
  * Initialize BLE: request permissions and start advertising + match loop.
@@ -53,7 +53,7 @@ export const initBLE = async () => {
     }, true);
   });
 
-  console.log(`[BLE] Powered on. My ID: ${myID}`);
+  console.log(`[BLE] Powered on. Mosaic ID: ${mosaicID}`);
 
   // Automatically start the scan → match loop on app load
   startMatchLoop()
@@ -93,7 +93,7 @@ export const startScan = () => {
 
           const foundName = device.localName || device.name;
 
-          if (foundName && foundName.startsWith('User-') && foundName !== myID) {
+          if (foundName && foundName !== mosaicID) {
             manager.stopDeviceScan();
             scanSubscription = null;
             console.log('[Scanner] Stopped — user found:', foundName);

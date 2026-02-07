@@ -1,12 +1,21 @@
-import { getMyID, startScan, stopScan } from './DualModeMesh';
+import { getMosaicID, startScan, stopScan } from './DualModeMesh';
 
 const BACKEND_URL = 'http://localhost:8000';
 
+/**
+ * Upload an SVG fragment to the backend.
+ *
+ * @param {number}            mosaicId - The MOSAIC_ID from HomeScreen.
+ * @param {string|Buffer|object} svg   - SVG content (converted to string before sending).
+ * @returns {Promise<object>}          - The backend response ({ status, data }).
+ */
 export const uploadSvgFragment = async (mosaicId, svg) => {
-  const response = await fetch(`${BACKEND_URL}/add_fragment`, {
+  const svgString = typeof svg === 'string' ? svg : String(svg);
+
+  const response = await fetch(`${BACKEND_URL}/add_svg`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mosaic_id: mosaicId, svg }),
+    body: JSON.stringify({ mosaic_id: mosaicId, svg: svgString }),
   });
 
   if (!response.ok) {
@@ -89,12 +98,12 @@ const scanOnce = async () => {
  * @returns {Promise<string>} "match" or "badmatch"
  */
 const checkMatch = async (foundUser, rssi) => {
-  const myID = getMyID();
+  const mosaicID = getMosaicID();
 
   const response = await fetch(`${BACKEND_URL}/user_found`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ finder: myID, found: foundUser, rssi }),
+    body: JSON.stringify({ finder: mosaicID, found: foundUser, rssi }),
   });
 
   const data = await response.json();
